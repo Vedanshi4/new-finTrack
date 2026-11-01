@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F6B5C">
+<title>Paisa – Budget Tracker</title>
+<style>
+:root{--bg:#F2F5F1;--card:#fff;--ink:#14201B;--mute:#6B7A73;--line:#E2E8E3;--acc:#0F6B5C;--accl:#DCEFE9;--warn:#C98A00;--bad:#C23B3B;--good:#1E8E5A}
+@media(prefers-color-scheme:dark){:root{--bg:#0F1613;--card:#18211D;--ink:#EAF1ED;--mute:#8FA096;--line:#26332D;--acc:#3FBFA5;--accl:#173A32;--warn:#E3A92B;--bad:#E26A6A;--good:#4CC98A}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding:calc(14px + env(safe-area-inset-top)) 14px calc(84px + env(safe-area-inset-bottom))}
+h1{font-size:22px;margin:4px 2px 12px;font-weight:700}
+h2{font-size:15px;margin:18px 2px 8px;color:var(--mute);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+.hero{background:var(--acc);color:#fff;border:0}
+.hero small{opacity:.8}.hero .big{font-size:32px;font-weight:700;margin:2px 0 8px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mute{color:var(--mute);font-size:13px}.bold{font-weight:600}
+.bar{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--acc);border-radius:6px}
+.bar.warn i{background:var(--warn)}.bar.bad i{background:var(--bad)}
+.pos{color:var(--good)}.neg{color:var(--bad)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:5}
+nav button{flex:1;background:none;border:0;color:var(--mute);font:inherit;font-size:11px;padding:6px 0;display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button span{font-size:20px;line-height:1}
+nav button.on{color:var(--acc);font-weight:700}
+.fab{position:fixed;right:16px;bottom:calc(78px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:0;background:var(--acc);color:#fff;font-size:30px;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:6}
+button.btn{background:var(--acc);color:#fff;border:0;border-radius:12px;padding:13px;font:inherit;font-weight:600;width:100%;margin-top:6px}
+button.ghost{background:var(--accl);color:var(--acc)}
+button.mini{background:none;border:0;color:var(--mute);font-size:13px;padding:6px}
+input,select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;margin:4px 0 10px}
+label{font-size:13px;color:var(--mute)}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:10}
+.sheet.open{display:flex}
+.sheet>div{background:var(--card);width:100%;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto}
+.seg{display:flex;background:var(--bg);border-radius:10px;padding:3px;margin-bottom:12px}
+.seg button{flex:1;border:0;background:none;color:var(--mute);font:inherit;padding:9px;border-radius:8px}
+.seg button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.tx{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.tx:last-child{border:0}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
+.empty{text-align:center;color:var(--mute);padding:26px 10px}
+.page{display:none}.page.on{display:block}
+</style>
+</head>
+<body>
+
+<div id="home" class="page on"></div>
+<div id="tx" class="page"></div>
+<div id="money" class="page"></div>
+<div id="inv" class="page"></div>
+<div id="goals" class="page"></div>
+
+<button class="fab" id="fab" onclick="openSheet()">+</button>
+
+<nav id="nav">
+<button data-p="home" class="on"><span>◔</span>Budgets</button>
+<button data-p="tx"><span>≡</span>Activity</button>
+<button data-p="money"><span>₹</span>Savings</button>
+<button data-p="inv"><span>↗</span>Invest</button>
+<button data-p="goals"><span>◎</span>Goals</button>
+</nav>
+
+<div class="sheet" id="sheet" onclick="if(event.target===this)closeSheet()"><div id="sheetBody"></div></div>
+
+<script>
+const COLORS=['#0F6B5C','#E07A3F','#3B7DD8','#C23B6B','#8A6FD1','#C9A227','#2E9E6B','#D1544B','#5B8C9A','#7A7A7A'];
+const KEY='paisa_v1';
+let S={cats:[{id:'c1',name:'Food',limit:6000},{id:'c2',name:'Transport',limit:2000},{id:'c3',name:'Bills',limit:5000},{id:'c4',name:'Shopping',limit:3000},{id:'c5',name:'Fun',limit:2000}],tx:[],inv:[],goals:[]};
+try{const r=localStorage.getItem(KEY);if(r)S=JSON.parse(r)}catch(e){}
+let page='home',month=new Date().toISOString().slice(0,7);
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){alert('Could not save – storage is blocked.')}};
+const $=id=>document.getElementById(id);
+const uid=()=>Math.random().toString(36).slice(2,9);
+const fmt=n=>'₹'+Math.round(n).toLocaleString('en-IN');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const today=()=>new Date().toISOString().slice(0,10);
+const cat=id=>S.cats.find(c=>c.id===id);
+const colorOf=id=>COLORS[Math.max(0,S.cats.findIndex(c=>c.id===id))%COLORS.length];
+const mtx=()=>S.tx.filter(t=>t.date.startsWith(month));
+const sum=a=>a.reduce((s,x)=>s+x,0);
+const spentIn=id=>sum(mtx().filter(t=>t.type==='exp'&&t.cat===id).map(t=>t.amt));
+const monthName=m=>new Date(m+'-01').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+function shiftMonth(d){const x=new Date(month+'-01');x.setMonth(x.getMonth()+d);month=x.toISOString().slice(0,7);render()}
+const monthBar=()=>`<div class="row" style="margin-bottom:8px"><button class="mini" onclick="shiftMonth(-1)">◀</button><span class="bold">${monthName(month)}</span><button class="mini" onclick="shiftMonth(1)">▶</button></div>`;
+
+/* ---------- pages ---------- */
+function renderHome(){
+  const inc=sum(mtx().filter(t=>t.type==='inc').map(t=>t.amt)),exp=sum(mtx().filter(t=>t.type==='exp').map(t=>t.amt));
+  const lim=sum(S.cats.map(c=>c.limit));
+  let h=monthBar()+`<div class="card hero"><small>Left to spend this month</small><div class="big">${fmt(lim-exp)}</div><small>Spent ${fmt(exp)} of ${fmt(lim)} budget · Income ${fmt(inc)}</small></div><h2>Category budgets</h2>`;
+  if(!S.cats.length)h+='<div class="empty">No categories yet. Add one below.</div>';
+  S.cats.forEach(c=>{const sp=spentIn(c.id),p=c.limit?sp/c.limit*100:0,cl=p>=100?'bad':p>=80?'warn':'';
+    h+=`<div class="card" onclick="catSheet('${c.id}')"><div class="row"><span class="bold"><i class="dot" style="background:${colorOf(c.id)}"></i>${esc(c.name)}</span><span class="${p>=100?'neg':''}">${fmt(sp)} <span class="mute">/ ${fmt(c.limit)}</span></span></div><div class="bar ${cl}"><i style="width:${Math.min(p,100)}%"></i></div><div class="mute" style="margin-top:6px">${p>=100?'Over by '+fmt(sp-c.limit):fmt(c.limit-sp)+' left'}</div></div>`});
+  h+=`<button class="btn ghost" onclick="catSheet()">+ Add category</button><button class="mini" style="margin-top:14px" onclick="backup()">Back up / restore data</button>`;
+  $('home').innerHTML='<h1>Budgets</h1>'+h;
+}
+function renderTx(){
+  const list=[...mtx()].sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
+  let h=monthBar();
+  if(!list.length)h+='<div class="empty">No transactions this month.<br>Tap + to add one.</div>';
+  else h+='<div class="card">'+list.map(t=>`<div class="tx" onclick="txSheet('${t.id}')"><div><div class="bold">${esc(t.note||(t.type==='inc'?'Income':cat(t.cat)?.name||'Expense'))}</div><div class="mute">${t.type==='exp'?`<i class="dot" style="background:${colorOf(t.cat)}"></i>${esc(cat(t.cat)?.name||'Other')} · `:''}${new Date(t.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div></div><div class="bold ${t.type==='inc'?'pos':''}">${t.type==='inc'?'+':'−'}${fmt(t.amt)}</div></div>`).join('')+'</div>';
+  $('tx').innerHTML='<h1>Activity</h1>'+h;
+}
+function renderMoney(){
+  const inc=sum(mtx().filter(t=>t.type==='inc').map(t=>t.amt)),ex=mtx().filter(t=>t.type==='exp'),exp=sum(ex.map(t=>t.amt)),saved=inc-exp;
+  const rate=inc?Math.round(saved/inc*100):0;
+  const by=S.cats.map(c=>({c,v:sum(ex.filter(t=>t.cat===c.id).map(t=>t.amt))}));
+  const other=sum(ex.filter(t=>!cat(t.cat)).map(t=>t.amt));if(other)by.push({c:{id:'x',name:'Other'},v:other});
+  by.sort((a,b)=>b.v-a.v);
+  let acc=0;const segs=by.filter(x=>x.v>0).map(x=>{const s=acc/exp*100;acc+=x.v;return`${colorOf(x.c.id)} ${s}% ${acc/exp*100}%`});
+  const totalInv=sum(S.inv.map(i=>i.cur)),totalGoal=sum(S.goals.map(g=>g.saved));
+  let h=monthBar()+`<div class="stats"><div class="card"><div class="mute">Income</div><div class="bold pos">${fmt(inc)}</div></div><div class="card"><div class="mute">Spent</div><div class="bold neg">${fmt(exp)}</div></div></div>
+  <div class="card hero"><small>Saved this month</small><div class="big">${saved<0?'−':''}${fmt(Math.abs(saved))}</div><small>${inc?rate+'% of income':'Add income to see your savings rate'}</small></div>
+  <div class="stats"><div class="card"><div class="mute">In investments</div><div class="bold">${fmt(totalInv)}</div></div><div class="card"><div class="mute">Set aside for goals</div><div class="bold">${fmt(totalGoal)}</div></div></div>
+  <h2>Where every rupee went</h2>`;
+  if(!exp)h+='<div class="empty">No spending this month yet.</div>';
+  else{h+=`<div class="card"><div style="width:150px;height:150px;border-radius:50%;margin:6px auto 16px;background:conic-gradient(${segs.join(',')});-webkit-mask:radial-gradient(circle 46px,transparent 98%,#000 100%);mask:radial-gradient(circle 46px,transparent 98%,#000 100%)"></div>`+
+    by.filter(x=>x.v>0).map(x=>`<div style="margin-bottom:12px"><div class="row"><span><i class="dot" style="background:${colorOf(x.c.id)}"></i>${esc(x.c.name)}</span><span class="bold">${fmt(x.v)} <span class="mute">${Math.round(x.v/exp*100)}%</span></span></div>
+    <div class="mute" style="margin:4px 0 0 16px">${ex.filter(t=>(cat(t.cat)?t.cat:'x')===x.c.id).sort((a,b)=>b.amt-a.amt).slice(0,3).map(t=>esc(t.note||'—')+' '+fmt(t.amt)).join(' · ')}</div></div>`).join('')+'</div>'}
+  $('money').innerHTML='<h1>Savings</h1>'+h;
+}
+function renderInv(){
+  const inv=sum(S.inv.map(i=>i.put)),cur=sum(S.inv.map(i=>i.cur)),pl=cur-inv;
+  let h=`<div class="card hero"><small>Current value</small><div class="big">${fmt(cur)}</div><small>Invested ${fmt(inv)} · ${pl>=0?'Gain':'Loss'} ${fmt(Math.abs(pl))}${inv?' ('+(pl/inv*100).toFixed(1)+'%)':''}</small></div>`;
+  if(!S.inv.length)h+='<div class="empty">No investments yet.<br>Add stocks, mutual funds, FDs, gold…</div>';
+  S.inv.forEach(i=>{const d=i.cur-i.put;h+=`<div class="card" onclick="invSheet('${i.id}')"><div class="row"><div><div class="bold">${esc(i.name)}</div><div class="mute">${esc(i.kind)} · Invested ${fmt(i.put)}</div></div><div style="text-align:right"><div class="bold">${fmt(i.cur)}</div><div class="${d>=0?'pos':'neg'}" style="font-size:13px">${d>=0?'+':'−'}${fmt(Math.abs(d))}</div></div></div></div>`});
+  h+='<button class="btn ghost" onclick="invSheet()">+ Add investment</button>';
+  $('inv').innerHTML='<h1>Investments</h1>'+h;
+}
+function renderGoals(){
+  let h='';
+  if(!S.goals.length)h+='<div class="empty">No goals yet.<br>Set a target and track it.</div>';
+  S.goals.forEach(g=>{const p=g.target?Math.min(g.saved/g.target*100,100):0;let eta='';
+    if(g.date){const d=Math.ceil((new Date(g.date)-new Date())/864e5),left=g.target-g.saved;eta=left<=0?'Goal reached 🎉':d>0?`${d} days left · save ${fmt(left/Math.max(d/30,1))}/month`:'Deadline passed'}
+    h+=`<div class="card"><div class="row"><span class="bold">${esc(g.name)}</span><span class="mute">${Math.round(p)}%</span></div><div class="bar"><i style="width:${p}%"></i></div><div class="row" style="margin-top:8px"><span>${fmt(g.saved)} <span class="mute">/ ${fmt(g.target)}</span></span></div><div class="mute">${eta}</div><div class="row" style="margin-top:10px;gap:8px"><button class="btn ghost" style="margin:0" onclick="goalAdd('${g.id}')">+ Add money</button><button class="mini" onclick="goalSheet('${g.id}')">Edit</button></div></div>`});
+  h+='<button class="btn ghost" onclick="goalSheet()">+ New goal</button>';
+  $('goals').innerHTML='<h1>Goals</h1>'+h;
+}
+function render(){({home:renderHome,tx:renderTx,money:renderMoney,inv:renderInv,goals:renderGoals})[page]()}
+
+/* ---------- sheets ---------- */
+function showSheet(html){$('sheetBody').innerHTML=html;$('sheet').classList.add('open')}
+function closeSheet(){$('sheet').classList.remove('open')}
+const val=id=>$(id).value;
+let tType='exp';
+function openSheet(){page==='inv'?invSheet():page==='goals'?goalSheet():txSheet()}
+function txSheet(id){
+  const t=id?S.tx.find(x=>x.id===id):{type:tType,amt:'',cat:S.cats[0]?.id,note:'',date:today()};tType=t.type;
+  showSheet(`<h1>${id?'Edit':'Add'} transaction</h1><div class="seg"><button id="sE" class="${t.type==='exp'?'on':''}" onclick="setT('exp')">Expense</button><button id="sI" class="${t.type==='inc'?'on':''}" onclick="setT('inc')">Income</button></div>
+  <label>Amount (₹)</label><input id="f_amt" type="number" inputmode="decimal" value="${t.amt}" autofocus>
+  <div id="catWrap" style="${t.type==='inc'?'display:none':''}"><label>Category</label><select id="f_cat">${S.cats.map(c=>`<option value="${c.id}" ${c.id===t.cat?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+  <label>Note</label><input id="f_note" value="${esc(t.note)}" placeholder="e.g. Lunch">
+  <label>Date</label><input id="f_date" type="date" value="${t.date}">
+  <button class="btn" onclick="saveTx('${id||''}')">Save</button>${id?`<button class="btn ghost" onclick="del('tx','${id}')">Delete</button>`:''}`);
+}
+function setT(t){tType=t;$('sE').classList.toggle('on',t==='exp');$('sI').classList.toggle('on',t==='inc');$('catWrap').style.display=t==='inc'?'none':''}
+function saveTx(id){
+  const amt=parseFloat(val('f_amt'));if(!(amt>0))return alert('Enter an amount.');
+  const o={id:id||uid(),type:tType,amt,cat:tType==='exp'?val('f_cat'):null,note:val('f_note').trim(),date:val('f_date')||today()};
+  if(tType==='exp'&&!o.cat)return alert('Add a category first (Budgets tab).');
+  id?S.tx[S.tx.findIndex(x=>x.id===id)]=o:S.tx.push(o);
+  if(o.type==='exp'){const c=cat(o.cat),sp=spentIn(o.cat);if(c&&o.date.startsWith(month)&&sp>c.limit)setTimeout(()=>alert(`Heads up: ${c.name} is over budget by ${fmt(sp-c.limit)}.`),100)}
+  save();closeSheet();render();
+}
+function catSheet(id){
+  const c=id?cat(id):{name:'',limit:''};
+  showSheet(`<h1>${id?'Edit':'New'} category</h1><label>Name</label><input id="f_name" value="${esc(c.name)}" placeholder="e.g. Groceries"><label>Monthly limit (₹)</label><input id="f_lim" type="number" inputmode="decimal" value="${c.limit}"><button class="btn" onclick="saveCat('${id||''}')">Save</button>${id?`<button class="btn ghost" onclick="del('cat','${id}')">Delete</button>`:''}`);
+}
+function saveCat(id){
+  const name=val('f_name').trim(),limit=parseFloat(val('f_lim'));if(!name||!(limit>=0))return alert('Enter a name and limit.');
+  id?Object.assign(cat(id),{name,limit}):S.cats.push({id:uid(),name,limit});save();closeSheet();render();
+}
+function invSheet(id){
+  const i=id?S.inv.find(x=>x.id===id):{name:'',kind:'Mutual fund',put:'',cur:''};
+  const kinds=['Mutual fund','Stocks','FD / RD','Gold','Crypto','PPF / EPF','Other'];
+  showSheet(`<h1>${id?'Edit':'Add'} investment</h1><label>Name</label><input id="f_name" value="${esc(i.name)}" placeholder="e.g. Nifty 50 index fund"><label>Type</label><select id="f_kind">${kinds.map(k=>`<option ${k===i.kind?'selected':''}>${k}</option>`).join('')}</select><label>Amount invested (₹)</label><input id="f_put" type="number" inputmode="decimal" value="${i.put}"><label>Current value (₹)</label><input id="f_cur" type="number" inputmode="decimal" value="${i.cur}"><button class="btn" onclick="saveInv('${id||''}')">Save</button>${id?`<button class="btn ghost" onclick="del('inv','${id}')">Delete</button>`:''}`);
+}
+function saveInv(id){
+  const name=val('f_name').trim(),put=parseFloat(val('f_put')),cur=parseFloat(val('f_cur')||val('f_put'));if(!name||!(put>=0))return alert('Enter a name and amount.');
+  const o={id:id||uid(),name,kind:val('f_kind'),put,cur};id?S.inv[S.inv.findIndex(x=>x.id===id)]=o:S.inv.push(o);save();closeSheet();render();
+}
+function goalSheet(id){
+  const g=id?S.goals.find(x=>x.id===id):{name:'',target:'',saved:0,date:''};
+  showSheet(`<h1>${id?'Edit':'New'} goal</h1><label>Goal</label><input id="f_name" value="${esc(g.name)}" placeholder="e.g. Emergency fund"><label>Target (₹)</label><input id="f_tgt" type="number" inputmode="decimal" value="${g.target}"><label>Saved so far (₹)</label><input id="f_sv" type="number" inputmode="decimal" value="${g.saved}"><label>Target date (optional)</label><input id="f_gd" type="date" value="${g.date||''}"><button class="btn" onclick="saveGoal('${id||''}')">Save</button>${id?`<button class="btn ghost" onclick="del('goals','${id}')">Delete</button>`:''}`);
+}
+function saveGoal(id){
+  const name=val('f_name').trim(),target=parseFloat(val('f_tgt')),saved=parseFloat(val('f_sv')||0);if(!name||!(target>0))return alert('Enter a name and target.');
+  const o={id:id||uid(),name,target,saved,date:val('f_gd')};id?S.goals[S.goals.findIndex(x=>x.id===id)]=o:S.goals.push(o);save();closeSheet();render();
+}
+function goalAdd(id){
+  const g=S.goals.find(x=>x.id===id);
+  showSheet(`<h1>Add to ${esc(g.name)}</h1><label>Amount (₹)</label><input id="f_amt" type="number" inputmode="decimal" autofocus><button class="btn" onclick="const a=parseFloat(val('f_amt'));if(!(a>0))return alert('Enter an amount.');S.goals.find(x=>x.id==='${id}').saved+=a;save();closeSheet();render()">Add</button>`);
+}
+function del(k,id){
+  if(!confirm('Delete this?'))return;
+  if(k==='cat'){S.cats=S.cats.filter(x=>x.id!==id)}else if(k==='tx'){S.tx=S.tx.filter(x=>x.id!==id)}else S[k]=S[k].filter(x=>x.id!==id);
+  save();closeSheet();render();
+}
+function backup(){
+  showSheet(`<h1>Back up data</h1><p class="mute">Data lives only in this browser. Copy it somewhere safe, or paste a backup to restore.</p><textarea id="f_bk" style="width:100%;height:140px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px">${esc(JSON.stringify(S))}</textarea><button class="btn" onclick="$('f_bk').select();document.execCommand('copy')">Copy</button><button class="btn ghost" onclick="try{const d=JSON.parse(val('f_bk'));if(!d.cats)throw 0;if(confirm('Replace all current data?')){S=d;save();closeSheet();render()}}catch(e){alert('That does not look like a valid backup.')}">Restore from text</button>`);
+}
+
+/* ---------- nav ---------- */
+$('nav').onclick=e=>{const b=e.target.closest('button');if(!b)return;page=b.dataset.p;
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id===page));
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  $('fab').style.display=page==='money'||page==='home'?'none':'block';
+  if(page==='home'||page==='money')$('fab').style.display='block';
+  window.scrollTo(0,0);render()};
+render();
+</script>
+</body>
+</html>
